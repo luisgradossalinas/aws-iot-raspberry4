@@ -1,0 +1,39 @@
+import base64
+import json
+import boto3
+import decimal
+import sys
+import uuid
+
+sns = boto3.client("sns")
+dynamo = boto3.resource('dynamodb')
+
+def lambda_handler(event, context):
+    
+    item = None
+    table = dynamo.Table('maratonforrest')
+    
+    decoded_record_data = [base64.b64decode(record['kinesis']['data']) for record in event['Records']]
+    deserialized_data = [json.loads(decoded_record) for decoded_record in decoded_record_data]
+
+    with table.batch_writer() as batch_writer:
+        for item in deserialized_data:
+            id = str(uuid.uuid4())
+            fec = item['date_reg']
+            name = item['name']
+            des = name + " llegó a la meta"
+            
+            batch_writer.put_item(                        
+                Item = {
+                            'id': id,
+                            'date_reg': fec,
+                            'name' : name,
+                            'des': des
+                        }
+            )
+            
+            sns.publish(
+                TopicArn = 'arn:aws:sns:us-east-1:XXXXXXXXX:SnsTopicForrest',    
+                Subject = name + " llegó a la meta",
+                Message = name + " llegó a la meta el " + fec
+            )
